@@ -1,12 +1,10 @@
-### NodeJs Server for Appointment bonking app
+## NodeJs Server for Appointment Booking app
 
-### [Which app using this server? ](https://medirtro.web.app/)
-
-### `Brief`
+## Brief
 
 The challenge is to building a NodeJs server for a Appointment booking app. Where authorized users can booked appointment on their desire date and time and track their appointment status via user dashboard. There also have to a admin dashboard for manage appointment and manipulate users
 
-### `Collections and end points`
+## Collections and end points
 
 - login to save user info and generate access-token >>>
   app.put("/login/:email", function)
@@ -33,7 +31,7 @@ The challenge is to building a NodeJs server for a Appointment booking app. Wher
 - // view service details by id >>>
   app.get("/service/:id", function)
 
-### `Technologies`
+## Technologies
 
 - NodeJs
 - ExpressJs
@@ -42,10 +40,40 @@ The challenge is to building a NodeJs server for a Appointment booking app. Wher
 - Mongodb
 - Cors
 
-#### `Ask Suzan for More Details`
+## Instructions for setup
 
-Email: asadsuzan7@gmail.com
 
-Linkedin: [asadsuzan](https://www.linkedin.com/in/asadsuzan/)
+### Firebase Setup
 
-Whatsapp: [+88 01614010594](https://wa.me/message/46YDVA5OUV5RC1)
+- Create a firebase account.
+- Sign in.
+- Go to Console (on top left)
+- Create Project
+- Dashboard > Project Settings. The secret key is the Web API Key.
+- Modify MediTro-Health-Care/src/firebaseConfig.js to add configuration from this page.
+
+### Setup MongoDB
+
+- Install mongoDB. Run mongodb shell with `mongosh`. Get localhost IP and port from Welcome message. 
+- Create `Doctors-portals` database in mongodb
+- Create Services collection in mongodb :  `mongoimport --jsonArray --db Doctors-portals --collection Services --file MediTro-Server/services.json`
+- Update monogodb server url in index.js.
+
+### Start Server
+
+`ADMIN=abhiag.719@gmail.com SECRET_KEY=<firebase-web-api-key> PORT=5001 node index.js`
+
+### Add Admin
+
+- Login with admin email so that the user gets create in the users collection in the mongoDB
+- Change the role of `abhiag.719@gmail.com` to admin with (in mongosh) :
+
+```
+use Doctors-portals
+
+db.users.updateOne(
+  { email: "abhiag.719@gmail.com" },
+  { $set: { role: "admin" } }
+)
+```
+
