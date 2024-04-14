@@ -37,12 +37,8 @@ function verifyJWT(req, res, next) {
 async function run() {
   try {
     await client.connect();
-    const serviceCollection = client
-      .db("Doctors-portals")
-      .collection("Services");
-    const appointmentCollection = client
-      .db("Doctors-portals")
-      .collection("appointment");
+    const serviceCollection = client.db("Doctors-portals").collection("Services");
+    const appointmentCollection = client.db("Doctors-portals").collection("Appointments");
     const userCollection = client.db("Doctors-portals").collection("users");
 
     //  login to save user info and generate access-token
@@ -160,24 +156,11 @@ async function run() {
     app.get("/my_appointment/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
       const token = req.headers.authorization;
-      if (
-        req.decoded.email === process.env.ADMIN &&
-        req.decoded.email === email
-      ) {
-        const cursor = appointmentCollection.find({});
-        const myAppointment = await cursor.toArray();
-
-        return res.send(myAppointment);
-      }
-      if (req.decoded.email === email) {
-        const cursor = appointmentCollection.find({ email });
-        const myAppointment = await cursor.toArray();
-
-        return res.send(myAppointment);
-      }
-
-      return res.status(401).send({ message: "forbidden access" });
+      const cursor = appointmentCollection.find({ userId: email });
+      const myAppointments = await cursor.toArray();
+      res.send(myAppointments);
     });
+    
     // get all services [get]
     app.get("/services", async (req, res) => {
       const cursor = serviceCollection.find({});
@@ -194,6 +177,29 @@ async function run() {
     });
   } finally {
   }
+  app.get('/services', async (req, res) => {
+    try {
+      const services = await serviceCollection.find().toArray();
+      res.json(services);
+    } catch (error) {
+      res.status(500).send(error);
+    }
+  });
+
+  app.post('/services/addDate', async (req, res) => {
+      try {
+          const { name, date, slot } = req.body;
+          // Update service with the new date and slot in 'scheduledDates'
+          await serviceCollection.updateOne(
+              { name: name },
+              { $push: { scheduledDates: { date, slot } } } // Pushing an object with date and slot
+          );
+          res.status(200).send('Date and slot added to service');
+      } catch (error) {
+          res.status(500).send(error);
+      }
+  });
+
 }
 run().catch(console.dir);
 
