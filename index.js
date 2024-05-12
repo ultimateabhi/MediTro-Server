@@ -12,6 +12,7 @@ app.use(cors());
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 // const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.rrsh6.mongodb.net/?retryWrites=true&w=majority`;
 const uri = `mongodb://127.0.0.1:27017/?retryWrites=true&w=majority`
+// const uri = `mongodb+srv://abhi:sadhguru123@cluster0.txvwiss.mongodb.net/?retryWrites=true&w=majority`
 const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -40,6 +41,47 @@ async function run() {
     const serviceCollection = client.db("Doctors-portals").collection("Services");
     const appointmentCollection = client.db("Doctors-portals").collection("Appointments");
     const userCollection = client.db("Doctors-portals").collection("users");
+    const bookingCollection = client.db("Doctors-portals").collection("Bookings");
+    const doctorsCollection = client.db("Doctors-portals").collection("Doctors");
+
+    // Get all doctors
+    app.get('/doctors', async (req, res) => {
+      try {
+        const doctors = await doctorsCollection.find().toArray();
+        res.json(doctors);
+      } catch (error) {
+        console.error('Error fetching doctors:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // Add a new doctor
+    app.post('/doctors', async (req, res) => {
+      try {
+        const newDoctor = req.body;
+        const result = await doctorsCollection.insertOne(newDoctor);
+        res.json(result.insertedId);
+      } catch (error) {
+        console.error('Error adding doctor:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // Remove a doctor
+    app.delete('/doctors/:id', async (req, res) => {
+      try {
+        const doctorId = req.params.id;
+        const result = await doctorsCollection.deleteOne({ _id: ObjectId(doctorId) });
+        if (result.deletedCount === 1) {
+          res.json({ message: 'Doctor removed successfully' });
+        } else {
+          res.status(404).json({ error: 'Doctor not found' });
+        }
+      } catch (error) {
+        console.error('Error removing doctor:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
 
     //  login to save user info and generate access-token
     app.put("/login/:email", async (req, res) => {
@@ -106,6 +148,7 @@ async function run() {
       const updateDoc = {
         $set: {
           stage: req.body.stage,
+          capacity: req.body.capacity || 11, // Update capacity if provided, otherwise use the default value
         },
       };
       const result = await appointmentCollection.updateOne(
@@ -139,19 +182,122 @@ async function run() {
       res.send({ removeHistory, removeUser });
     });
 
-    // get  appointment invoice by id [get]
     app.get("/invoice/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
-      const invoice = await appointmentCollection.findOne(query);
-      res.send(invoice);
+
+      try {
+        const invoice = await bookingCollection.findOne(query);
+        if (invoice) {
+          res.json(invoice);
+        } else {
+          res.status(404).json({ error: "Invoice not found" });
+        }
+      } catch (error) {
+        console.error("Error retrieving invoice:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    // // get  appointment invoice by id [get]
+    // app.get("/invoice/:id", async (req, res) => {
+    //   const id = req.params.id;
+    //   const query = { _id: ObjectId(id) };
+    //   const invoice = await appointmentCollection.findOne(query);
+    //   res.send(invoice);
+    // });
+
+    app.put('/bookings/:id', async (req, res) => {
+      const { id } = req.params;
+      const { completionStatus, doctor } = req.body;
+
+      try {
+        const result = await bookingCollection.updateOne(
+          { _id: ObjectId(id) },
+          { $set: { completionStatus, doctor } }
+        );
+        res.json(result);
+      } catch (error) {
+        console.error('Error updating booking:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // Create a new booking [POST]
+    app.post("/bookings", async (req, res) => {
+      const booking = req.body;
+      const result = await bookingCollection.insertOne(booking);
+      res.send(result);
+    });
+
+    // Get all bookings [GET]
+    app.get("/bookings", async (req, res) => {
+      try {
+        const bookings = await bookingCollection.find().toArray();
+        res.json(bookings);
+      } catch (error) {
+        console.error("Error fetching bookings:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    // Approve booking [PUT]
+    app.put("/bookings/:id/approve", async (req, res) => {
+      const bookingId = req.params.id;
+
+      try {
+        const result = await bookingCollection.updateOne(
+          { _id: ObjectId(bookingId) },
+          { $set: { status: "Approved" } }
+        );
+        res.send(result);
+      } catch (error) {
+        console.error("Error approving booking:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    // Update appointment capacity [PUT]
+    app.put("/appointments/:id/capacity", async (req, res) => {
+      const appointmentId = req.params.id;
+      const { capacityChange } = req.body;
+
+      try {
+        const result = await appointmentCollection.updateOne(
+          { _id: ObjectId(appointmentId) },
+          { $inc: { capacity: capacityChange } }
+        );
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating appointment capacity:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    // Get user's bookings [GET]
+    app.get("/bookings/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const bookings = await bookingCollection.find(query).toArray();
+      res.send(bookings);
+    });
+
+    // Get all available appointments [GET]
+    app.get("/appointments", async (req, res) => {
+      const appointments = await appointmentCollection.find().toArray();
+      res.send(appointments);
     });
 
     // book appointment [post]
     app.post("/appointment", async (req, res) => {
-      const appointment = await appointmentCollection.insertOne(req.body);
+      const appointment = await appointmentCollection.insertOne({
+        ...req.body,
+        capacity: 11, // Set the default capacity to 11
+      });
       res.send(appointment);
+      // res.send(req.body);
     });
+
     // get appointment for authorized user [get]
     app.get("/my_appointment/:email", verifyJWT, async (req, res) => {
       const email = req.params.email;
@@ -160,7 +306,7 @@ async function run() {
       const myAppointments = await cursor.toArray();
       res.send(myAppointments);
     });
-    
+
     // get all services [get]
     app.get("/services", async (req, res) => {
       const cursor = serviceCollection.find({});
@@ -169,7 +315,7 @@ async function run() {
     });
 
     // get selected services by id [get]
-    app.get("/service/:id", async (req, res) => {
+    app.get("/services/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
       const service = await serviceCollection.findOne(query);

@@ -1,7 +1,8 @@
 from pymongo import MongoClient
 
 # MongoDB URI
-uri = "mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.2.2"
+# uri = "mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.2.2"
+uri = "mongodb+srv://abhi:sadhguru123@cluster0.txvwiss.mongodb.net/?retryWrites=true&w=majority"
 
 try:
     # Attempt to connect to MongoDB
