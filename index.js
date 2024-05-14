@@ -140,7 +140,6 @@ async function run() {
       return res.status(401).send({ message: "forbidden access" });
     });
 
-    // change appointment status for admin
     app.put("/appointment", async (req, res) => {
       const email = req.query.email;
       const id = req.query.id;
@@ -149,14 +148,11 @@ async function run() {
       const updateDoc = {
         $set: {
           stage: req.body.stage,
-          capacity: req.body.capacity || 11, // Update capacity if provided, otherwise use the default value
+          capacity: req.body.capacity || 11,
+          doctor: req.body.doctor || '',
         },
       };
-      const result = await appointmentCollection.updateOne(
-        filter,
-        updateDoc,
-        option
-      );
+      const result = await appointmentCollection.updateOne(filter, updateDoc, option);
       res.send(result);
     });
 
@@ -335,6 +331,23 @@ async function run() {
       res.send(appointments);
     });
 
+    app.put("/appointments/:id", async (req, res) => {
+      try {
+        const appointmentId = req.params.id;
+        const { doctor } = req.body;
+
+        const result = await appointmentCollection.updateOne(
+          { _id: ObjectId(appointmentId) },
+          { $set: { doctor } }
+        );
+
+        res.json(result);
+      } catch (error) {
+        console.error('Error updating appointment doctor:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     // book appointment [post]
     app.post("/appointment", async (req, res) => {
       try {
@@ -342,7 +355,8 @@ async function run() {
         const appointment = await appointmentCollection.insertOne({
           ...otherFields,
           capacity: capacity || 11,
-          filled: 0
+          filled: 0,
+          doctor: ''
         });
         res.send(appointment);
       } catch (error) {
