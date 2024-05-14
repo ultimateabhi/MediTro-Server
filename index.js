@@ -149,7 +149,7 @@ async function run() {
         $set: {
           stage: req.body.stage,
           capacity: req.body.capacity || 11,
-          doctor: req.body.doctor || '',
+          doctor: req.body.doctor ? ObjectId(req.body.doctor) : null
         },
       };
       const result = await appointmentCollection.updateOne(filter, updateDoc, option);
@@ -338,7 +338,7 @@ async function run() {
 
         const result = await appointmentCollection.updateOne(
           { _id: ObjectId(appointmentId) },
-          { $set: { doctor } }
+          { $set: { doctor: ObjectId(doctor) } }
         );
 
         res.json(result);
@@ -356,7 +356,7 @@ async function run() {
           ...otherFields,
           capacity: capacity || 11,
           filled: 0,
-          doctor: ''
+          doctor: null
         });
         res.send(appointment);
       } catch (error) {
