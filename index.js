@@ -139,6 +139,7 @@ async function run() {
       }
       return res.status(401).send({ message: "forbidden access" });
     });
+
     // change appointment status for admin
     app.put("/appointment", async (req, res) => {
       const email = req.query.email;
@@ -158,17 +159,30 @@ async function run() {
       );
       res.send(result);
     });
+
     // delete appointment by id [admin route]
     app.delete("/appointments/:id", async (req, res) => {
       const { id } = req.params;
       const query = { _id: ObjectId(id) };
-      const result = await appointmentCollection.deleteOne(query);
-      if (result.deletedCount === 1) {
-        res.send(result);
-      } else {
-        res.status(403).send({
-          message: "No documents matched the query. Deleted 0 documents.",
-        });
+
+      try {
+        const appointment = await appointmentCollection.findOne(query);
+
+        if (appointment.filled > 0) {
+          return res.status(403).json({ error: "Cannot delete appointment with bookings" });
+        }
+
+        const result = await appointmentCollection.deleteOne(query);
+        if (result.deletedCount === 1) {
+          res.send(result);
+        } else {
+          res.status(403).send({
+            message: "No documents matched the query. Deleted 0 documents.",
+          });
+        }
+      } catch (error) {
+        console.error("Error deleting appointment:", error);
+        res.status(500).json({ error: "Internal server error" });
       }
     });
 
@@ -182,6 +196,23 @@ async function run() {
       res.send({ removeHistory, removeUser });
     });
 
+    app.get("/invoice_appointment/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+
+      try {
+        const invoice = await appointmentCollection.findOne(query);
+        if (invoice) {
+          res.json(invoice);
+        } else {
+          res.status(404).json({ error: "Invoice not found", Tinvoice: invoice });
+        }
+      } catch (error) {
+        console.error("Error retrieving invoice:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
     app.get("/invoice/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
@@ -191,7 +222,7 @@ async function run() {
         if (invoice) {
           res.json(invoice);
         } else {
-          res.status(404).json({ error: "Invoice not found" });
+          res.status(404).json({ error: "Invoice not found", Tinvoice: invoice });
         }
       } catch (error) {
         console.error("Error retrieving invoice:", error);
@@ -207,19 +238,28 @@ async function run() {
     //   res.send(invoice);
     // });
 
-    app.put('/bookings/:id', async (req, res) => {
+    app.put("/bookings/:id", async (req, res) => {
       const { id } = req.params;
-      const { completionStatus, doctor } = req.body;
+      const { completionStatus, status } = req.body;
 
       try {
+        let updateData;
+        if (completionStatus) {
+          updateData = { completionStatus };
+        } else if (status) {
+          updateData = { status };
+        } else {
+          return res.status(400).json({ error: "Invalid update data" });
+        }
+
         const result = await bookingCollection.updateOne(
           { _id: ObjectId(id) },
-          { $set: { completionStatus, doctor } }
+          { $set: updateData }
         );
         res.json(result);
       } catch (error) {
-        console.error('Error updating booking:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error("Error updating booking:", error);
+        res.status(500).json({ error: "Internal server error" });
       }
     });
 
@@ -257,19 +297,26 @@ async function run() {
       }
     });
 
-    // Update appointment capacity [PUT]
-    app.put("/appointments/:id/capacity", async (req, res) => {
+    app.put("/appointments/:id/filled", async (req, res) => {
       const appointmentId = req.params.id;
-      const { capacityChange } = req.body;
+      const { filledChange } = req.body;
 
       try {
+        const appointment = await appointmentCollection.findOne({ _id: ObjectId(appointmentId) });
+
+        if (!appointment) {
+          return res.status(404).json({ error: "Appointment not found" });
+        }
+
+        const updatedFilled = appointment.filled ? appointment.filled + filledChange : filledChange;
+
         const result = await appointmentCollection.updateOne(
           { _id: ObjectId(appointmentId) },
-          { $inc: { capacity: capacityChange } }
+          { $set: { filled: updatedFilled } }
         );
         res.send(result);
       } catch (error) {
-        console.error("Error updating appointment capacity:", error);
+        console.error("Error updating appointment filled value:", error);
         res.status(500).json({ error: "Internal server error" });
       }
     });
@@ -290,12 +337,18 @@ async function run() {
 
     // book appointment [post]
     app.post("/appointment", async (req, res) => {
-      const appointment = await appointmentCollection.insertOne({
-        ...req.body,
-        capacity: 11, // Set the default capacity to 11
-      });
-      res.send(appointment);
-      // res.send(req.body);
+      try {
+        const { capacity, ...otherFields } = req.body;
+        const appointment = await appointmentCollection.insertOne({
+          ...otherFields,
+          capacity: capacity || 11,
+          filled: 0
+        });
+        res.send(appointment);
+      } catch (error) {
+        console.error("Error creating appointment:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
     });
 
     // get appointment for authorized user [get]
